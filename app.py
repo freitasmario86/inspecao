@@ -17,9 +17,7 @@ st.markdown("Busca automática de PDFs no Google Drive, extração de peças e e
 
 if st.button("Buscar e Processar PDFs do Drive", type="primary"):
     
-    if URL_APPS_SCRIPT == "https://script.google.com/macros/s/AKfycbx8hvyk_NTfuhVEBi-LlsXpNr-b2NJNAru_oILk_SlZeLipGjpts1KUuMe7DP-uo5Gvbw/exec":
-        st.error("⚠️ Você esqueceu de colocar a URL do Apps Script no código!")
-        st.stop()
+    
         
     with st.spinner("Conectando ao Google Drive e buscando PDFs..."):
         try:
