@@ -8,7 +8,7 @@ import re
 st.set_page_config(page_title="Ferro+ | Gestão de Inspeções", layout="wide")
 
 # ⚠️ COLOQUE SUA URL AQUI NOVAMENTE
-URL_APPS_SCRIPT = "COLE_AQUI_A_SUA_URL_DO_APPS_SCRIPT"
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbx8hvyk_NTfuhVEBi-LlsXpNr-b2NJNAru_oILk_SlZeLipGjpts1KUuMe7DP-uo5Gvbw/exec"
 
 st.title("🚜 Extrator de Inspeções e Backlogs (Ferro+)")
 st.markdown("Busca automática de PDFs no Google Drive, extração de peças e envio para Planilha.")
