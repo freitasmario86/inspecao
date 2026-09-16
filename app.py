@@ -6,13 +6,11 @@ import re
 # --- CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Ferro+ | Gestão de Inspeções", layout="wide")
 
-# ⚠️ COLOQUE A SUA URL NOVA DO APPS SCRIPT AQUI DENTRO DAS ASPAS
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbx8hvyk_NTfuhVEBi-LlsXpNr-b2NJNAru_oILk_SlZeLipGjpts1KUuMe7DP-uo5Gvbw/exec"
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbx8hvyk_NTfuhVEBi-L1sXpNr-b2NJNAru_oiLk_S1ZeLipGjpts1KUuMe7DP-uo5Gvbw/exec"
 
 st.title("🚜 Extrator Inteligente de Inspeções (Ferro+)")
-st.markdown("Arraste os PDFs da sua pasta consolidada para extrair todos os dados reais e enviar para a Planilha.")
+st.markdown("Arraste os PDFs da sua pasta consolidada para extrair os dados para a Planilha.")
 
-# Componente de Upload de arquivos
 arquivos_pdf = st.file_uploader(
     "Selecione os PDFs das Inspeções", 
     type=['pdf'], 
@@ -33,7 +31,7 @@ if st.button("Processar e Salvar na Planilha", type="primary"):
             with pdfplumber.open(arquivo) as pdf:
                 texto_completo = ""
                 
-                # 1. Leitura das páginas (ignora o resumo final para não duplicar dados)
+                # 1. Leitura das páginas (ignora o resumo final)
                 for page in pdf.pages:
                     texto_pagina = page.extract_text()
                     if texto_pagina:
@@ -42,10 +40,8 @@ if st.button("Processar e Salvar na Planilha", type="primary"):
                             break
                         texto_completo += texto_pagina + "\n"
 
-                # 2. Extração do Cabeçalho do Equipamento (Regex Flexível)
+                # 2. Extração do Cabeçalho
                 match_os = re.search(r'(?:N[°º]|O\.?S\.?|Ordem\s*de\s*Serviço)\s*:?\s*(\d+)', texto_completo, re.IGNORECASE)
-                
-                # Se não encontrar no texto do PDF, pega o número da OS direto do nome do arquivo (ex: OS_9515...)
                 if not match_os:
                     match_os = re.search(r'OS_?(\d+)', arquivo.name, re.IGNORECASE)
 
@@ -77,63 +73,82 @@ if st.button("Processar e Salvar na Planilha", type="primary"):
                 blocos_servico = texto_completo.split("Descrição do serviço")[1:]
                 
                 for bloco in blocos_servico:
-                    # Busca Criticidade
+                    # Captura Criticidade
                     crit_match = re.search(r'(ALTO|MÉDIO|BAIXO|MODERADO|CRÍTICO|IMPORTANTE)', bloco, re.IGNORECASE)
-                    criticidade = crit_match.group(1).upper() if crit_match else "N/A"
+                    criticidade = crit_match.group(1).upper() if crit_match else "MODERADO"
                     
-                    # Busca Sistema
-                    sistema_limpo = bloco.split("Criticidade")[0].replace("SANY Irmen", "").strip()
-                    if not sistema_limpo:
-                        linhas = [l.strip() for l in bloco.split("\n") if l.strip()]
-                        sistema_limpo = linhas[0] if linhas else "SISTEMA DIVERSO"
+                    # Captura Nome do Sistema / Item Inspecionado
+                    # Pega as primeiras linhas do bloco ignorando cabeçalhos conhecidos
+                    linhas = [l.strip() for l in bloco.split("\n") if l.strip()]
+                    sistema_limpo = "SISTEMA DIVERSO"
+                    
+                    for linha in linhas:
+                        # Descarta linhas com rótulos genéricos
+                        if any(rotulo in linha.lower() for rotulo in ["criticidade", "sany irmen", "descrição do serviço", "relação de peças", "anotações"]):
+                            continue
+                        if len(linha) > 3: # Primeira linha útil é o sistema/item
+                            sistema_limpo = linha
+                            break
                         
-                    # Busca Anotações (Descrição da Falha)
-                    anotacoes = "Sem descrição"
+                    # Captura Anotações / Descrição detalhada da falha
+                    anotacoes = "Sem descrição complementar"
                     if "Anotações" in bloco:
                         anot_parte = bloco.split("Anotações")[1]
-                        anot_parte = anot_parte.split("Imagem")[0]
-                        anotacoes = anot_parte.replace("\n", " ").strip()
-                        
+                        anot_parte = anot_parte.split("Imagem")[0].split("Relação de peças")[0]
+                        anot_texto = anot_parte.replace("\n", " ").strip()
+                        if len(anot_texto) > 2:
+                            anotacoes = anot_texto
+                            
                     dados_extracao["backlogs"].append({
                         "sistema": sistema_limpo,
                         "descricao": anotacoes,
                         "criticidade": criticidade
                     })
                     
-                    # Busca Relação de Peças
+                    # Captura Tabela de Peças
                     if "Relação de peças" in bloco:
-                        tabela_str = bloco.split("Relação de peças")[1].split("Anotações")[0]
-                        linhas_pecas = tabela_str.strip().split("\n")
+                        trecho_pecas = bloco.split("Relação de peças")[1]
+                        # Limita a leitura até a próxima seção
+                        for marcador in ["Anotações", "Imagem", "Descrição do serviço"]:
+                            if marcador in trecho_pecas:
+                                trecho_pecas = trecho_pecas.split(marcador)[0]
+                                
+                        linhas_pecas = trecho_pecas.strip().split("\n")
                         
                         for linha in linhas_pecas:
-                            codigo_match = re.search(r'([A-Z0-9]{8,})', linha)
+                            # Filtra linhas com códigos alfanuméricos de peças (ex: 60123456 ou B2299...)
+                            codigo_match = re.search(r'([A-Z0-9]{6,15})', linha)
                             if codigo_match:
                                 codigo = codigo_match.group(1)
                                 resto_linha = linha.replace(codigo, '').strip()
+                                
+                                # Procura quantidade
                                 qt_match = re.search(r'\b(\d{1,3})\b', resto_linha)
                                 qtd = qt_match.group(1) if qt_match else "1"
                                 
-                                descricao = resto_linha.replace(qtd, '').strip()
-                                descricao = re.sub(r'\d{2}:\d{2}:\d{2}', '', descricao).strip()
+                                # O resto é a descrição do nome da peça
+                                desc_peca = resto_linha.replace(qtd, '').strip()
+                                desc_peca = re.sub(r'\d{2}:\d{2}:\d{2}', '', desc_peca).strip(' |:-')
                                 
-                                dados_extracao["pecas"].append({
-                                    "codigo": codigo,
-                                    "descricao": descricao.strip(' |'),
-                                    "qtd": qtd,
-                                    "duracao": "N/A"
-                                })
+                                if len(desc_peca) > 2 and desc_peca.lower() not in ["código", "descrição", "qtd"]:
+                                    dados_extracao["pecas"].append({
+                                        "codigo": codigo,
+                                        "descricao": desc_peca,
+                                        "qtd": qtd,
+                                        "duracao": "N/A"
+                                    })
 
-                # Exibe um menu expansível com o resumo para conferência visual
+                # Exibe resumo visual no Streamlit antes de enviar
                 with st.expander(f"🔍 Ver dados extraídos da OS {os_val} ({tag_val})"):
                     st.json(dados_extracao)
                     
-                # 4. Envio dos dados estruturados para o Google Apps Script
+                # 4. Envio para o Google Apps Script
                 resposta = requests.post(URL_APPS_SCRIPT, json=dados_extracao)
                 
                 if resposta.status_code == 200 and resposta.json().get('status') == 'sucesso':
-                    st.success(f"✅ Dados da OS {os_val} ({tag_val}) inseridos na Planilha com sucesso!")
+                    st.success(f"✅ OS {os_val} ({tag_val}) gravada com sucesso!")
                 else:
-                    st.error(f"❌ Erro ao salvar OS {os_val}. Resposta: {resposta.text}")
+                    st.error(f"❌ Erro ao salvar OS {os_val}: {resposta.text}")
                     
         except Exception as e:
             st.error(f"Erro ao processar o arquivo {arquivo.name}: {e}")
