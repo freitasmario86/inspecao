@@ -6,8 +6,8 @@ import re
 # --- CONFIGURAÇÕES DA PÁGINA ---
 st.set_page_config(page_title="Ferro+ | Gestão de Inspeções", layout="wide")
 
-# ⚠️ COLOQUE AQUI A SUA URL DO GOOGLE APPS SCRIPT (WEB APP)
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbx8hvyk_NTfuhVEBi-LlsXpNr-b2NJNAru_oILk_SlZeLipGjpts1KUuMe7DP-uo5Gvbw/exec"
+# ⚠️ COLOQUE A SUA URL NOVA DO APPS SCRIPT AQUI DENTRO DAS ASPAS
+URL_APPS_SCRIPT = "COLE_AQUI_A_SUA_URL_NOVA"
 
 st.title("🚜 Extrator Inteligente de Inspeções (Ferro+)")
 st.markdown("Arraste os PDFs da sua pasta consolidada para extrair todos os dados reais e enviar para a Planilha.")
@@ -43,7 +43,6 @@ if st.button("Processar e Salvar na Planilha", type="primary"):
                         texto_completo += texto_pagina + "\n"
 
                 # 2. Extração do Cabeçalho do Equipamento (Regex Flexível)
-                # Tenta buscar no texto do PDF
                 match_os = re.search(r'(?:N[°º]|O\.?S\.?|Ordem\s*de\s*Serviço)\s*:?\s*(\d+)', texto_completo, re.IGNORECASE)
                 
                 # Se não encontrar no texto do PDF, pega o número da OS direto do nome do arquivo (ex: OS_9515...)
@@ -53,7 +52,6 @@ if st.button("Processar e Salvar na Planilha", type="primary"):
                 data_inspecao = re.search(r'Data:\s*([\d/]+)', texto_completo)
                 
                 tag_equip = re.search(r'(CS\d+)', texto_completo)
-                # Se não achar a TAG no texto, busca no nome do arquivo (ex: equip_CS26)
                 if not tag_equip:
                     tag_equip = re.search(r'(CS\d+)', arquivo.name, re.IGNORECASE)
 
@@ -93,7 +91,7 @@ if st.button("Processar e Salvar na Planilha", type="primary"):
                     anotacoes = "Sem descrição"
                     if "Anotações" in bloco:
                         anot_parte = bloco.split("Anotações")[1]
-                        anot_parte = anot_parte.split("Imagem")[0] # Descarta trechos de imagem
+                        anot_parte = anot_parte.split("Imagem")[0]
                         anotacoes = anot_parte.replace("\n", " ").strip()
                         
                     dados_extracao["backlogs"].append({
@@ -116,7 +114,7 @@ if st.button("Processar e Salvar na Planilha", type="primary"):
                                 qtd = qt_match.group(1) if qt_match else "1"
                                 
                                 descricao = resto_linha.replace(qtd, '').strip()
-                                descricao = re.sub(r'\d{2}:\d{2}:\d{2}', '', descricao).strip() # Limpa horários
+                                descricao = re.sub(r'\d{2}:\d{2}:\d{2}', '', descricao).strip()
                                 
                                 dados_extracao["pecas"].append({
                                     "codigo": codigo,
